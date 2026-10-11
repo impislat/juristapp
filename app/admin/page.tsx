@@ -36,7 +36,7 @@ export default async function AdminPage({ searchParams }: { searchParams: { erro
     .limit(100);
 
   const ticketRows = tickets || [];
-  const userIds = [...new Set(ticketRows.map((ticket) => ticket.user_id))];
+  const userIds = Array.from(new Set(ticketRows.map((ticket) => ticket.user_id)));
   const { data: profiles } = userIds.length
     ? await supabase.from("profiles").select("id,full_name,role").in("id", userIds)
     : { data: [] as { id: string; full_name: string; role: string }[] };
