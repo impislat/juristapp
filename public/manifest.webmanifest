@@ -1,0 +1,14 @@
+{
+  "name": "Правовая помощь — Давид Курбанов",
+  "short_name": "Правовая помощь",
+  "description": "Правовые вопросы и документы",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#0A2540",
+  "orientation": "portrait",
+  "icons": [
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
