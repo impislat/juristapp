@@ -5,7 +5,7 @@ import { Brand } from "@/app/components/brand";
 export const dynamic = "force-dynamic";
 export default async function ArticlesPage() {
  const supabase=createClient();
- const {data:articles}=await supabase.from("articles").select("id,title,slug,excerpt,published_at,created_at").eq("status","published").order("published_at",{ascending:false});
+ const {data:articles}=await supabase.from("articles").select("id,title,slug,excerpt,content,published_at,created_at").eq("status","published").order("published_at",{ascending:false});
  const rows=articles||[];
  const ids=rows.map(a=>a.id);
  const [{data:likes},{data:comments}]=ids.length?await Promise.all([supabase.from("article_likes").select("article_id").in("article_id",ids),supabase.from("article_comments").select("article_id").in("article_id",ids)]):[{data:[] as {article_id:string}[]},{data:[] as {article_id:string}[]}];
