@@ -1,45 +1,47 @@
-# JuristApp — база приложения
+# JuristApp — обновление интерфейса и функций
 
-Next.js 14 + Supabase Auth/Postgres. В этом этапе есть премиальная главная, регистрация клиента, вход, личный кабинет, создание обращений и переписка в обращении.
+Полный проект Next.js 14 + Supabase. Сборка включает премиальное обновление дизайна, правовой журнал с публикациями, каталог услуг на основе прайс-листа 2026, чат без полной перезагрузки, вложения в обращениях и отправку писем клиентам.
 
-## 1. Environment variables
-В Vercel → Settings → Environment Variables:
+## Важно перед деплоем
+
+1. Сохраните текущую рабочую версию GitHub/Vercel (создайте commit или branch для отката).
+2. В Supabase откройте **SQL Editor → New query**.
+3. Скопируйте и выполните файл `supabase/migration_v2.sql` целиком. Это миграция для уже существующей базы — не запускайте вместо неё исходный `schema.sql`.
+4. Загрузите содержимое ZIP в существующий GitHub-репозиторий, сохраняя структуру папок, и сделайте commit. Не загружайте `.env` или секретные ключи.
+5. Дождитесь успешного деплоя в Vercel.
+6. Проверьте `/admin`, `/articles`, `/services`, откройте тестовое обращение и проверьте сообщение/файл.
+
+## Переменные окружения
+
+Уже настроенные переменные Supabase и Telegram оставьте без изменений:
+
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `NEXT_PUBLIC_SITE_URL` = `https://juristapp.vercel.app` (используется для подтверждения email)
+- `NEXT_PUBLIC_SITE_URL`
 
-Сохраните секреты только в Vercel, не в GitHub.
+Отправка email с вложениями работает после настройки Resend (не обязательна для сборки сайта):
 
-## 2. Database
-В Supabase → SQL Editor → New query. Откройте `supabase/schema.sql`, скопируйте весь SQL, нажмите Run. SQL создаёт profiles, tickets, ticket_messages и RLS-политики.
+- `RESEND_API_KEY` — секретный API-ключ Resend, хранить только в Environment Variables Vercel.
+- `RESEND_FROM_EMAIL` — подтверждённый отправитель, например `JuristApp <support@ваш-домен>`.
 
-## 3. Auth settings
-Supabase → Authentication → URL Configuration:
-- Site URL: `https://juristapp.vercel.app`
-- Redirect URLs: `https://juristapp.vercel.app/auth/callback` и локально `http://localhost:3000/auth/callback` (для разработки).
-Для теста можно временно отключить Confirm email, но для публичного запуска лучше оставить подтверждение email включённым и проверить SMTP/письма.
+После добавления переменных выполните Redeploy в Vercel. Без них интерфейс письма будет доступен, а при отправке покажет понятное сообщение о необходимости настройки почты.
 
-## 4. Deploy
-После добавления файлов в GitHub в ветку `main` Vercel запустит новый deploy. Если не запустился, Vercel → Deployments → Redeploy.
+## Что реализовано
 
-## 5. Первичный администратор / специалист
-По умолчанию регистрация всегда создаёт роль `client`. Нельзя дать себе роль специалиста через форму. После того как пользователь зарегистрировался и подтвердил email, администратор должен выдать роль вручную через Supabase SQL Editor, заменив email на настоящий:
+- Обновлённая типографика и контраст, плавные анимации и hover-состояния с поддержкой `prefers-reduced-motion`.
+- Раздел `/articles`: публикации, черновики, лайки и комментарии. Создание, публикация/снятие с публикации и удаление — в админке.
+- Раздел `/services`: каталог услуг, сроки и цены по прайс-листу 2026; заказ создаёт обращение.
+- Быстрая отправка сообщений через API без полной навигации.
+- Закрытые/выполненные обращения доступны для чтения, но сообщения и новые вложения запрещены как в интерфейсе, так и на уровне RLS.
+- Скрепка в чате: PDF, DOC, DOCX, JPG, PNG, WEBP и TXT до 15 МБ. Файлы находятся в закрытом Supabase Storage, ссылки подписанные и временные.
+- Email клиента виден администратору; письмо с одним вложением до 10 МБ можно отправить прямо из админки через Resend.
 
-```sql
-update public.profiles p set role = 'admin'
-from auth.users u where p.id = u.id and u.email = 'YOUR_EMAIL_HERE';
-```
+## Проверка после обновления
 
-Выдавайте роль `admin` только своему аккаунту. Для назначения специалиста используйте `role = 'specialist'` только после проверки пользователя. Это пока ручное приглашение/одобрение; интерфейс приглашений добавляется следующим этапом.
+1. Войдите администратором и откройте `/admin`.
+2. Создайте тестовую статью как черновик, затем опубликуйте. Откройте `/articles` в отдельном окне.
+3. Создайте тестовое обращение и отправьте текст и файл.
+4. Закройте обращение статусом «Выполнено». Убедитесь, что поле ввода и загрузка файлов исчезли, а история осталась.
+5. Для проверки email добавьте переменные Resend в Vercel и отправьте тестовое письмо на свой адрес.
 
-## Important
-- Не добавляйте `service_role`/Secret key в `NEXT_PUBLIC_*` или GitHub.
-- Перед публичным запуском проверьте SQL/RLS и email confirmation. Функции оплаты, загрузки документов, realtime и реальные отзывы пока не входят в этот этап.
-- Цены на главной — исходные цены проекта; проверьте и подтвердите их перед публичным продвижением.
-
-
-## Admin panel update
-
-The admin interface is available at `/admin` for accounts whose `public.profiles.role` is `admin`. Admins can review the latest 100 tickets, open conversations, and update ticket statuses. Server actions check the authenticated user's role before changing a status; Supabase RLS remains enabled.
-
-To deploy this update, upload the updated project files to the root of the connected GitHub repository and commit them. Vercel should start a deployment automatically. After it succeeds, sign in again or refresh the dashboard; an “Админ-панель” link will be shown to the admin account.
+Если SQL-миграция ещё не выполнена, разделы публикаций и вложений не будут работать до её запуска.

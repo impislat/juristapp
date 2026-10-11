@@ -4,6 +4,8 @@ import { ArrowLeft, ArrowUpRight, CheckCircle2, Clock3, FileText, LayoutDashboar
 import { createClient } from "@/lib/supabase/server";
 import { signOut, updateTicketStatus } from "@/app/actions";
 import { Brand } from "@/app/components/brand";
+import { EmailClientForm } from "@/app/components/email-client-form";
+import { createArticle, deleteArticle, updateArticleStatus } from "@/app/actions";
 
 const statusLabel: Record<string, string> = {
   new: "Новое",
@@ -21,7 +23,7 @@ const statusOptions = [
   { value: "closed", label: "Закрыто" },
 ];
 
-export default async function AdminPage({ searchParams }: { searchParams: { error?: string; updated?: string } }) {
+export default async function AdminPage({ searchParams }: { searchParams: { error?: string; updated?: string; articleError?: string; articleCreated?: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -35,11 +37,12 @@ export default async function AdminPage({ searchParams }: { searchParams: { erro
     .order("created_at", { ascending: false })
     .limit(100);
 
+  const { data: articles } = await supabase.from("articles").select("id,title,slug,status,created_at,published_at").order("created_at", { ascending: false }).limit(20);
   const ticketRows = tickets || [];
   const userIds = Array.from(new Set(ticketRows.map((ticket) => ticket.user_id)));
   const { data: profiles } = userIds.length
-    ? await supabase.from("profiles").select("id,full_name,role").in("id", userIds)
-    : { data: [] as { id: string; full_name: string; role: string }[] };
+    ? await supabase.from("profiles").select("id,full_name,role,email").in("id", userIds)
+    : { data: [] as { id: string; full_name: string; role: string; email?: string | null }[] };
   const profilesById = new Map((profiles || []).map((item) => [item.id, item]));
 
   const { data: messages } = ticketRows.length
@@ -74,6 +77,8 @@ export default async function AdminPage({ searchParams }: { searchParams: { erro
       {searchParams.error && <div className="notice notice-error">{searchParams.error}</div>}
       {searchParams.updated && <div className="notice">Статус обращения обновлён.</div>}
       {ticketsError && <div className="notice notice-error">Не удалось загрузить обращения. Проверьте права доступа в Supabase.</div>}
+      {searchParams.articleError && <div className="notice notice-error">{searchParams.articleError}</div>}
+      {searchParams.articleCreated && <div className="notice">Публикация сохранена. Она появится в журнале, если выбрано «Опубликовано».</div>}
 
       <div className="stat-grid admin-stat-grid">
         <div className="stat-card"><span>Всего обращений</span><strong>{ticketRows.length}</strong><FileText size={19} /></div>
@@ -81,6 +86,18 @@ export default async function AdminPage({ searchParams }: { searchParams: { erro
         <div className="stat-card"><span>Завершено</span><strong>{completedCount}</strong><CheckCircle2 size={19} /></div>
         <div className="stat-card"><span>Клиентов с обращениями</span><strong>{clientsCount}</strong><Users size={19} /></div>
       </div>
+
+      <section className="admin-publishing-panel" id="publishing">
+        <div className="section-heading"><div><div className="eyebrow">КОНТЕНТ-СИСТЕМА</div><h2>Новая публикация</h2></div><Link className="button button-outline" href="/articles">Открыть журнал <ArrowUpRight size={15}/></Link></div>
+        <p className="muted">Создавай короткие инструкции, новости и полезные разборы. Черновики доступны только администратору, опубликованные материалы видны всем.</p>
+        <form action={createArticle} className="article-editor-form">
+          <label>Заголовок<input name="title" minLength={4} maxLength={180} required placeholder="Например, что делать при получении судебного приказа"/></label>
+          <label>Краткое описание<input name="excerpt" maxLength={500} placeholder="О чём материал — 1–2 предложения"/></label>
+          <label>Текст публикации<textarea name="content" rows={8} minLength={20} required placeholder="Разделяй абзацы пустой строкой. Пиши понятным языком, по шагам…"/></label>
+          <div className="article-editor-bottom"><label>Статус<select name="status" defaultValue="draft"><option value="draft">Черновик</option><option value="published">Опубликовать сразу</option></select></label><button className="button button-primary" type="submit">Сохранить публикацию <ArrowUpRight size={15}/></button></div>
+        </form>
+        <div className="admin-article-list"><div className="eyebrow">ПОСЛЕДНИЕ ПУБЛИКАЦИИ</div>{articles?.length ? articles.map(article => <div className="admin-article-row" key={article.id}><div><strong>{article.title}</strong><small>{article.status === "published" ? "Опубликовано" : "Черновик"} · {new Date(article.created_at).toLocaleDateString("ru-RU")}</small></div><div className="admin-article-actions"><Link href={`/admin/articles/${article.id}/edit`} className="text-link">Редактировать</Link>{article.status === "published" && <Link href={`/articles/${article.slug}`} target="_blank" className="text-link">Открыть</Link>}<form action={updateArticleStatus}><input type="hidden" name="articleId" value={article.id}/><input type="hidden" name="status" value={article.status === "published" ? "draft" : "published"}/><button className="button button-outline" type="submit">{article.status === "published" ? "Снять с публикации" : "Опубликовать"}</button></form><form action={deleteArticle}><input type="hidden" name="articleId" value={article.id}/><button className="button button-danger" type="submit">Удалить</button></form></div></div>) : <p className="muted">Пока нет публикаций.</p>}</div>
+      </section>
 
       <section className="ticket-section admin-ticket-section">
         <div className="section-heading"><div><div className="eyebrow">ЦЕНТР ОБРАЩЕНИЙ</div><h2>Все обращения</h2></div><span className="admin-results">Последние {ticketRows.length} из максимум 100</span></div>
@@ -93,6 +110,7 @@ export default async function AdminPage({ searchParams }: { searchParams: { erro
               <span className={`status status-${ticket.status}`}>{statusLabel[ticket.status] || ticket.status}</span>
             </div>
             <div className="admin-ticket-meta"><span><Users size={14} /> {client?.full_name || "Клиент без имени"}</span><span><MessageCircle size={14} /> {messageCounts.get(ticket.id) || 0} сообщ.</span><span>ID: {ticket.id.slice(0, 8).toUpperCase()}</span></div>
+            <EmailClientForm ticketId={ticket.id} email={client?.email || ""} title={ticket.title} />
             <div className="admin-ticket-actions">
               <Link className="button button-primary" href={`/tickets/${ticket.id}`}>Открыть переписку <ArrowUpRight size={15} /></Link>
               <form action={updateTicketStatus} className="admin-status-form">
