@@ -57,3 +57,35 @@ export async function sendMessage(formData: FormData) {
   revalidatePath(`/tickets/${ticketId}`);
   redirect(`/tickets/${ticketId}?sent=1`);
 }
+
+
+export async function updateTicketStatus(formData: FormData) {
+  const ticketId = String(formData.get("ticketId") || "");
+  const status = String(formData.get("status") || "");
+  const allowedStatuses = ["new", "in_progress", "waiting_client", "completed", "closed"];
+  if (!ticketId || !allowedStatuses.includes(status)) {
+    redirect("/admin?error=Некорректные%20данные");
+  }
+
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.role !== "admin") redirect("/dashboard?error=Недостаточно%20прав");
+
+  const { error } = await supabase
+    .from("tickets")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", ticketId);
+  if (error) redirect(`/admin?error=${encodeURIComponent("Не удалось изменить статус обращения")}`);
+
+  revalidatePath("/admin");
+  revalidatePath("/dashboard");
+  revalidatePath(`/tickets/${ticketId}`);
+  redirect("/admin?updated=1");
+}

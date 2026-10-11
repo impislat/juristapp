@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, MessageCircle, Clock3, CheckCircle2, ArrowUpRight, LogOut, ShieldCheck, FileText } from "lucide-react";
+import { Plus, MessageCircle, Clock3, CheckCircle2, ArrowUpRight, LogOut, ShieldCheck, FileText, LayoutDashboard } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createTicket, signOut } from "@/app/actions";
 import { Brand } from "@/app/components/brand";
@@ -13,7 +13,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
  if (!isStaff) query = query.eq("user_id",user.id);
  const { data: tickets } = await query;
  const name = profile?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "Клиент";
- return <main className="portal"><aside className="portal-sidebar"><Brand/><div className="sidebar-label">РАБОЧЕЕ ПРОСТРАНСТВО</div><Link className="side-link active" href="/dashboard"><FileText size={18}/> Обращения <span className="side-count">{tickets?.length || 0}</span></Link><a className="side-link" href="#new-ticket"><Plus size={18}/> Новое обращение</a><div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={18}/><span>Ваши данные доступны только участникам обращения.</span></div><form action={signOut}><button className="side-link side-button" type="submit"><LogOut size={18}/> Выйти</button></form></div></aside>
+ return <main className="portal"><aside className="portal-sidebar"><Brand/><div className="sidebar-label">РАБОЧЕЕ ПРОСТРАНСТВО</div><Link className="side-link active" href="/dashboard"><FileText size={18}/> Обращения <span className="side-count">{tickets?.length || 0}</span></Link>{profile?.role === "admin" && <Link className="side-link" href="/admin"><LayoutDashboard size={18}/> Админ-панель</Link>}<a className="side-link" href="#new-ticket"><Plus size={18}/> Новое обращение</a><div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={18}/><span>Ваши данные доступны только участникам обращения.</span></div><form action={signOut}><button className="side-link side-button" type="submit"><LogOut size={18}/> Выйти</button></form></div></aside>
  <section className="portal-main"><header className="portal-header"><div><div className="eyebrow">ЛИЧНЫЙ КАБИНЕТ</div><h1>Здравствуйте, {name.split(" ")[0]}</h1><p className="muted">Все ваши вопросы и ответы специалистов — в одном месте.</p></div><div className="user-chip"><span className="avatar">{name.slice(0,1).toUpperCase()}</span><span><strong>{name}</strong><small>{isStaff ? (profile?.role === "admin" ? "Администратор" : "Специалист") : "Клиент"}</small></span></div></header>
  {searchParams.error && <div className="notice notice-error">{searchParams.error}</div>}
  <div className="stat-grid"><div className="stat-card"><span>Всего обращений</span><strong>{tickets?.length || 0}</strong><FileText size={19}/></div><div className="stat-card"><span>В работе</span><strong>{tickets?.filter(t=>["new","in_progress","waiting_client"].includes(t.status)).length || 0}</strong><Clock3 size={19}/></div><div className="stat-card"><span>Завершено</span><strong>{tickets?.filter(t=>["completed","closed"].includes(t.status)).length || 0}</strong><CheckCircle2 size={19}/></div></div>

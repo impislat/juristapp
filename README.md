@@ -36,3 +36,10 @@ from auth.users u where p.id = u.id and u.email = 'YOUR_EMAIL_HERE';
 - Не добавляйте `service_role`/Secret key в `NEXT_PUBLIC_*` или GitHub.
 - Перед публичным запуском проверьте SQL/RLS и email confirmation. Функции оплаты, загрузки документов, realtime и реальные отзывы пока не входят в этот этап.
 - Цены на главной — исходные цены проекта; проверьте и подтвердите их перед публичным продвижением.
+
+
+## Admin panel update
+
+The admin interface is available at `/admin` for accounts whose `public.profiles.role` is `admin`. Admins can review the latest 100 tickets, open conversations, and update ticket statuses. Server actions check the authenticated user's role before changing a status; Supabase RLS remains enabled.
+
+To deploy this update, upload the updated project files to the root of the connected GitHub repository and commit them. Vercel should start a deployment automatically. After it succeeds, sign in again or refresh the dashboard; an “Админ-панель” link will be shown to the admin account.
