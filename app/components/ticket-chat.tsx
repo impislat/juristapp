@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/browser";
 import { Download, FileText, LoaderCircle, Paperclip, Send } from "lucide-react";
 type Attachment = { id: string; file_name: string; mime_type: string; file_size: number; url: string | null };
 type Message = { id: string; body: string; sender_id: string; created_at: string; attachment?: Attachment | null };
@@ -15,6 +16,51 @@ export function TicketChat({ ticketId, userId, initialMessages, closed, isStaff 
   catch (err) { setError(err instanceof Error ? err.message : "Не удалось загрузить файл."); } finally { setBusy(false); }
  }
  useEffect(() => { setMessages(initialMessages); }, [initialMessages]);
+ useEffect(() => {
+  const supabase = createClient();
+
+  const channel = supabase
+    .channel(`ticket-live-${ticketId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "ticket_messages",
+        filter: `ticket_id=eq.${ticketId}`,
+      },
+      (payload) => {
+        const incoming = payload.new as Message;
+
+        if (!incoming?.id) return;
+
+        setMessages((current) =>
+          current.some((message) => message.id === incoming.id)
+            ? current
+            : [...current, incoming]
+        );
+
+        router.refresh();
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "tickets",
+        filter: `id=eq.${ticketId}`,
+      },
+      () => {
+        router.refresh();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}, [ticketId, router]);
  const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} КБ` : `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
  return <section className="conversation"><div className="conversation-top"><div><h2>Переписка</h2><p>{closed ? "Обращение завершено. История доступна только для чтения." : "Сообщения и документы по обращению хранятся здесь."}</p></div><FileText size={20}/></div>
   {messages.length ? messages.map(m => <article className={`message ${m.sender_id === userId ? "message-own" : ""}`} key={m.id}><div className="message-meta"><strong>{m.sender_id === userId ? "Вы" : (isStaff ? "Клиент" : "Администратор / специалист")}</strong><time>{new Date(m.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time></div><p className="message-body">{m.body}</p>{m.attachment && <div className="attachment-card"><span className="attachment-icon"><FileText size={20}/></span><span className="attachment-info"><strong>{m.attachment.file_name}</strong><small>{formatSize(m.attachment.file_size)} · {m.attachment.mime_type}</small></span>{m.attachment.url && <a href={m.attachment.url} target="_blank" rel="noreferrer" aria-label="Открыть файл"><Download size={18}/></a>}</div>}</article>) : <div className="empty-message">Сообщений пока нет.</div>}
